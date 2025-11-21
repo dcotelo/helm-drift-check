@@ -51,15 +51,15 @@ jobs:
           echo 'EOF' >> $GITHUB_OUTPUT
 
       - name: Create Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
-          release_name: Release ${{ steps.tag.outputs.tag }}
+          name: Release ${{ steps.tag.outputs.tag }}
           body: ${{ steps.changelog.outputs.changelog }}
           draft: false
           prerelease: ${{ contains(steps.tag.outputs.tag, '-') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update major version tag
         run: |
