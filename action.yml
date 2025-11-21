@@ -1,0 +1,189 @@
+name: 'Helm Chart Drift Check'
+description: 'Comprehensive Helm chart drift detection across multiple services with GitOps integration'
+author: 'dcotelo'
+
+branding:
+  icon: 'git-branch'
+  color: 'blue'
+
+inputs:
+  github-token:
+    description: 'GitHub token for repository access (GITHUB_TOKEN or personal access token)'
+    required: false
+    default: ${{ github.token }}
+  github-app-id:
+    description: 'GitHub App ID for accessing private repositories (alternative to github-token)'
+    required: false
+  github-app-private-key:
+    description: 'GitHub App private key for accessing private repositories (required with github-app-id)'
+    required: false
+  manifests-repository:
+    description: 'Repository containing Argo ApplicationSet and values files (format: owner/repo)'
+    required: true
+  chart-path:
+    description: 'Path to the Helm chart directory'
+    required: false
+    default: 'charts/app'
+  services-config:
+    description: 'JSON array of service configurations with name, argo_file, and values_file'
+    required: true
+  dyff-version:
+    description: 'Version of dyff tool to use'
+    required: false
+    default: '1.7.0'
+  create-pr-comment:
+    description: 'Whether to create PR comments with drift results'
+    required: false
+    default: 'true'
+
+outputs:
+  drift-found:
+    description: 'Whether any drift was detected'
+    value: ${{ steps.drift-check.outputs.drift_found }}
+  files-with-diffs:
+    description: 'Number of files with differences'
+    value: ${{ steps.drift-check.outputs.files_with_diffs }}
+  total-files:
+    description: 'Total number of files checked'
+    value: ${{ steps.drift-check.outputs.total_files }}
+  summary-file:
+    description: 'Path to the summary markdown file'
+    value: ${{ steps.drift-check.outputs.summary_file }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Generate GitHub App token
+      if: ${{ inputs.github-app-id != '' && inputs.github-app-private-key != '' }}
+      uses: actions/create-github-app-token@v1
+      id: app-token
+      with:
+        app-id: ${{ inputs.github-app-id }}
+        private-key: ${{ inputs.github-app-private-key }}
+        owner: ${{ github.repository_owner }}
+
+    - name: Set authentication token
+      id: auth-token
+      shell: bash
+      run: |
+        if [[ -n "${{ steps.app-token.outputs.token }}" ]]; then
+          echo "token=${{ steps.app-token.outputs.token }}" >> "$GITHUB_OUTPUT"
+        else
+          echo "token=${{ inputs.github-token }}" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Checkout manifests repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ steps.auth-token.outputs.token }}
+        repository: ${{ inputs.manifests-repository }}
+        path: manifests
+
+    - name: Set up Helm
+      uses: azure/setup-helm@v4
+      with:
+        version: 'latest'
+
+    - name: Install dyff
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        # Determine architecture
+        case "$(uname -m)" in
+          x86_64) ARCH="amd64" ;;
+          aarch64|arm64) ARCH="arm64" ;;
+          *) echo "Unsupported architecture: $(uname -m)" && exit 1 ;;
+        esac
+        
+        # Determine OS
+        case "$(uname -s)" in
+          Linux) OS="linux" ;;
+          Darwin) OS="darwin" ;;
+          *) echo "Unsupported OS: $(uname -s)" && exit 1 ;;
+        esac
+        
+        DYFF_ARCHIVE="dyff_${{ inputs.dyff-version }}_${OS}_${ARCH}.tar.gz"
+        DYFF_URL="https://github.com/homeport/dyff/releases/download/v${{ inputs.dyff-version }}/${DYFF_ARCHIVE}"
+        
+        echo "📥 Downloading dyff ${OS}/${ARCH}..."
+        curl -fsSL "$DYFF_URL" -o "$DYFF_ARCHIVE"
+        
+        echo "📦 Extracting dyff..."
+        tar -xzf "$DYFF_ARCHIVE"
+        
+        echo "📍 Installing dyff..."
+        sudo mv dyff /usr/local/bin/dyff
+        chmod +x /usr/local/bin/dyff
+        
+        echo "✅ dyff installation complete"
+        dyff version
+
+    - name: Extract service versions
+      id: extract-versions
+      shell: bash
+      env:
+        SERVICES_CONFIG: ${{ inputs.services-config }}
+      run: |
+        set -euo pipefail
+        source "${{ github.action_path }}/scripts/extract-versions.sh"
+
+    - name: Run drift check
+      id: drift-check
+      shell: bash
+      env:
+        SERVICES_CONFIG: ${{ inputs.services-config }}
+        CHART_PATH: ${{ inputs.chart-path }}
+      run: |
+        set -euo pipefail
+        source "${{ github.action_path }}/scripts/drift-check.sh"
+
+    - name: Post PR Comment
+      if: ${{ inputs.create-pr-comment == 'true' && always() }}
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          
+          // Read the drift summary
+          let summary;
+          try {
+            const summaryFile = '${{ steps.drift-check.outputs.summary_file }}' || 'drift_summary.md';
+            summary = fs.readFileSync(summaryFile, 'utf8');
+          } catch (error) {
+            console.error('Failed to read summary file:', error);
+            summary = '## ❌ Drift Check Failed\n\nUnable to read drift check results.';
+          }
+          
+          // Add workflow run link
+          const workflowUrl = `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+          summary += `\n\n🔗 [View full workflow run](${workflowUrl})`;
+          
+          // Find existing comment
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+          
+          const existingComment = comments.find(comment => 
+            comment.body.includes('📊 Helm Chart Drift Check Results')
+          );
+          
+          if (existingComment) {
+            console.log('Updating existing comment');
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existingComment.id,
+              body: summary
+            });
+          } else {
+            console.log('Creating new comment');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: summary
+            });
+          }

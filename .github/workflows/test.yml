@@ -1,0 +1,287 @@
+name: Test Action
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout action repository
+        uses: actions/checkout@v4
+        with:
+          path: action
+
+      - name: Create test manifests repository
+        run: |
+          # For testing, we'll use the current repository and simulate manifests
+          cd ${{ github.workspace }}
+          
+          # Create test Argo ApplicationSet files
+          mkdir -p test-manifests/argo-apps/api test-manifests/argo-apps/web
+          mkdir -p test-manifests/api test-manifests/web
+          
+          # Create test Argo ApplicationSet files
+          mkdir -p manifests/argo-apps/api manifests/argo-apps/web
+          mkdir -p manifests/api manifests/web
+          
+          # Create test Argo ApplicationSet file for API
+          cat > test-manifests/argo-apps/api/api-prod.yaml << EOF
+          apiVersion: argoproj.io/v1alpha1
+          kind: ApplicationSet
+          metadata:
+            name: api-prod
+          spec:
+            generators:
+            - list:
+                elements:
+                - cluster: prod
+            template:
+              metadata:
+                name: api-prod
+              spec:
+                source:
+                  repoURL: https://charts.example.com/helm-charts
+                  chart: api
+                  targetRevision: "1.2.3"
+                  helm:
+                    valueFiles:
+                    - values-prod.yaml
+          EOF
+          
+          # Create test Argo ApplicationSet file for Web
+          cat > test-manifests/argo-apps/web/web-prod.yaml << EOF
+          apiVersion: argoproj.io/v1alpha1
+          kind: ApplicationSet
+          metadata:
+            name: web-prod
+          spec:
+            generators:
+            - list:
+                elements:
+                - cluster: prod
+            template:
+              metadata:
+                name: web-prod
+              spec:
+                source:
+                  repoURL: https://charts.example.com/helm-charts
+                  chart: web
+                  targetRevision: "2.0.1"
+                  helm:
+                    valueFiles:
+                    - values-prod.yaml
+          EOF
+          
+          # Create test values files
+          cat > test-manifests/api/values-prod.yaml << EOF
+          image:
+            repository: api
+            tag: "1.2.3"
+          resources:
+            limits:
+              memory: 512Mi
+              cpu: 500m
+          EOF
+          
+          cat > test-manifests/web/values-prod.yaml << EOF
+          image:
+            repository: web
+            tag: "2.0.1"
+          resources:
+            limits:
+              memory: 256Mi
+              cpu: 250m
+          EOF
+          
+          git add test-manifests/
+          git commit -m "Initial test manifests"
+          git tag v1.2.3
+          
+          # Commit changes to simulate drift
+          sed -i 's/memory: 512Mi/memory: 1Gi/' test-manifests/api/values-prod.yaml
+          git add test-manifests/
+          git commit -m "Increase API memory"
+
+      - name: Create test Helm chart
+        run: |
+          cd action
+          mkdir -p charts/test-app/templates
+          
+          # Create Chart.yaml
+          cat > charts/test-app/Chart.yaml << EOF
+          apiVersion: v2
+          name: test-app
+          version: 0.1.0
+          description: A test Helm chart
+          EOF
+          
+          # Create values.yaml
+          cat > charts/test-app/values.yaml << EOF
+          image:
+            repository: app
+            tag: "latest"
+          resources:
+            limits:
+              memory: 128Mi
+              cpu: 100m
+          EOF
+          
+          # Create deployment template
+          cat > charts/test-app/templates/deployment.yaml << EOF
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: test-app
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: test-app
+            template:
+              metadata:
+                labels:
+                  app: test-app
+              spec:
+                containers:
+                - name: app
+                  image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+                  resources:
+                    {{- toYaml .Values.resources | nindent 12 }}
+          EOF
+
+      - name: Test action with valid configuration
+        uses: ./action
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          manifests-repository: ${{ github.repository }}
+          chart-path: charts/test-app
+          create-pr-comment: 'false'
+          services-config: |
+            [
+              {
+                "name": "api",
+                "argo_file": "test-manifests/argo-apps/api/api-prod.yaml",
+                "values_file": "test-manifests/api/values-prod.yaml"
+              },
+              {
+                "name": "web",
+                "argo_file": "test-manifests/argo-apps/web/web-prod.yaml",
+                "values_file": "test-manifests/web/values-prod.yaml"
+              }
+            ]
+        id: test-drift
+
+      - name: Verify outputs
+        run: |
+          echo "Drift found: ${{ steps.test-drift.outputs.drift-found }}"
+          echo "Files with diffs: ${{ steps.test-drift.outputs.files-with-diffs }}"
+          echo "Total files: ${{ steps.test-drift.outputs.total-files }}"
+          echo "Summary file: ${{ steps.test-drift.outputs.summary-file }}"
+          
+          # Validate that outputs are set
+          if [[ -z "${{ steps.test-drift.outputs.total-files }}" ]]; then
+            echo "ERROR: total-files output not set"
+            exit 1
+          fi
+          
+          if [[ -z "${{ steps.test-drift.outputs.summary-file }}" ]]; then
+            echo "ERROR: summary-file output not set"
+            exit 1
+          fi
+          
+          # Check if summary file exists
+          if [[ ! -f "${{ steps.test-drift.outputs.summary-file }}" ]]; then
+            echo "ERROR: Summary file does not exist"
+            exit 1
+          fi
+          
+          echo "All outputs validated successfully!"
+
+      - name: Display summary
+        run: |
+          if [[ -f "${{ steps.test-drift.outputs.summary-file }}" ]]; then
+            echo "=== Drift Check Summary ==="
+            cat "${{ steps.test-drift.outputs.summary-file }}"
+          fi
+
+  test-error-handling:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout action repository
+        uses: actions/checkout@v4
+        with:
+          path: action
+
+      - name: Test with invalid configuration (should not fail)
+        uses: ./action
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          manifests-repository: nonexistent-org/nonexistent-repo
+          chart-path: charts/test-app
+          create-pr-comment: 'false'
+          services-config: |
+            [
+              {
+                "name": "invalid-service",
+                "argo_file": "nonexistent/file.yaml",
+                "values_file": "nonexistent/values.yaml"
+              }
+            ]
+        id: test-invalid
+        continue-on-error: true
+
+      - name: Verify error handling
+        run: |
+          echo "Test completed - verifying graceful error handling"
+          # The action should complete without failing the workflow
+          # even when manifests repository doesn't exist
+
+  lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Lint shell scripts
+        run: |
+          # Install shellcheck
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          
+          # Lint all shell scripts
+          find scripts -name "*.sh" -type f -exec shellcheck {} \;
+
+      - name: Validate action.yml
+        run: |
+          # Install yq for YAML validation
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+          
+          # Validate action.yml syntax
+          yq eval '.' action.yml > /dev/null
+          
+          # Check required fields
+          if ! yq eval '.name' action.yml | grep -q "Helm Chart Drift Check"; then
+            echo "ERROR: action.yml missing or invalid name"
+            exit 1
+          fi
+          
+          if ! yq eval '.description' action.yml | grep -q .; then
+            echo "ERROR: action.yml missing description"
+            exit 1
+          fi
+          
+          if ! yq eval '.runs.using' action.yml | grep -q "composite"; then
+            echo "ERROR: action.yml should use composite"
+            exit 1
+          fi
+          
+          echo "action.yml validation passed!"

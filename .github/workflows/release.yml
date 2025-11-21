@@ -1,0 +1,82 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract tag name
+        id: tag
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Create changelog from git commits
+          if git tag --sort=-version:refname | head -2 | tail -1 | grep -q .; then
+            # Get previous tag
+            PREV_TAG=$(git tag --sort=-version:refname | head -2 | tail -1)
+            echo "Generating changelog from $PREV_TAG to ${{ steps.tag.outputs.tag }}"
+            
+            # Generate changelog
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" $PREV_TAG..${{ steps.tag.outputs.tag }})
+          else
+            echo "No previous tag found, showing all commits"
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)")
+          fi
+          
+          # Save changelog to file for release
+          {
+            echo "## What's Changed"
+            echo "$CHANGELOG"
+            echo ""
+            echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG:-$(git rev-list --max-parents=0 HEAD)}...${{ steps.tag.outputs.tag }}"
+          } > changelog.md
+          
+          # Set output for release notes
+          echo 'changelog<<EOF' >> $GITHUB_OUTPUT
+          cat changelog.md >> $GITHUB_OUTPUT
+          echo 'EOF' >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          release_name: Release ${{ steps.tag.outputs.tag }}
+          body: ${{ steps.changelog.outputs.changelog }}
+          draft: false
+          prerelease: ${{ contains(steps.tag.outputs.tag, '-') }}
+
+      - name: Update major version tag
+        run: |
+          # Extract major version (e.g., v1.2.3 -> v1)
+          MAJOR_VERSION=$(echo "${{ steps.tag.outputs.tag }}" | cut -d. -f1)
+          
+          # Only update if it's not a prerelease
+          if [[ "${{ steps.tag.outputs.tag }}" != *"-"* ]]; then
+            echo "Updating major version tag: $MAJOR_VERSION"
+            
+            # Delete existing major version tag if it exists
+            git tag -d "$MAJOR_VERSION" || true
+            git push origin :"$MAJOR_VERSION" || true
+            
+            # Create new major version tag
+            git tag "$MAJOR_VERSION"
+            git push origin "$MAJOR_VERSION"
+          else
+            echo "Skipping major version update for prerelease"
+          fi
