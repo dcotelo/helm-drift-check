@@ -266,7 +266,7 @@ main() {
 Unable to find chart versions in Argo ApplicationSet files or git tags.
 Drift checking will be available once versions are properly configured.
 EOF
-        echo "diff_found=false" >> "$GITHUB_OUTPUT"
+        echo "drift_found=false" >> "$GITHUB_OUTPUT"
         echo "files_with_diffs=0" >> "$GITHUB_OUTPUT"
         echo "total_files=0" >> "$GITHUB_OUTPUT"
         echo "summary_file=$SUMMARY_FILE" >> "$GITHUB_OUTPUT"
@@ -288,7 +288,7 @@ EOF
 Unable to extract chart versions from Argo ApplicationSet files.
 Please check the Argo file paths and targetRevision fields.
 EOF
-        echo "diff_found=false" >> "$GITHUB_OUTPUT"
+        echo "drift_found=false" >> "$GITHUB_OUTPUT"
         echo "files_with_diffs=0" >> "$GITHUB_OUTPUT"
         echo "total_files=0" >> "$GITHUB_OUTPUT"
         echo "summary_file=$SUMMARY_FILE" >> "$GITHUB_OUTPUT"
@@ -325,7 +325,7 @@ EOF
     write_summary_footer
     
     # Set outputs
-    echo "diff_found=$OVERALL_DIFF_FOUND" >> "$GITHUB_OUTPUT"
+    echo "drift_found=$OVERALL_DIFF_FOUND" >> "$GITHUB_OUTPUT"
     echo "files_with_diffs=$FILES_WITH_DIFFS" >> "$GITHUB_OUTPUT" 
     echo "total_files=$TOTAL_FILES" >> "$GITHUB_OUTPUT"
     echo "summary_file=$SUMMARY_FILE" >> "$GITHUB_OUTPUT"
