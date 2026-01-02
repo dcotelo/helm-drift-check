@@ -41,7 +41,7 @@ Provide examples of how this feature would be used:
 
 ```yaml
 # Example action configuration
-- uses: dcotelo/helm-drift-check@v1
+- uses: helm-tools/helm-drift-check@v1
   with:
     # New feature configuration
     new-feature: 'example-value'

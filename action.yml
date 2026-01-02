@@ -1,6 +1,6 @@
 name: 'Helm Chart Drift Check'
 description: 'Comprehensive Helm chart drift detection across multiple services with GitOps integration'
-author: 'dcotelo'
+author: 'helm-tools'
 
 branding:
   icon: 'git-branch'

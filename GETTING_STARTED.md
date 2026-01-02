@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Helm Chart Drift Check
-        uses: dcotelo/helm-drift-check@v1
+        uses: helm-tools/helm-drift-check@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           manifests-repository: 'your-org/your-manifests-repo'
@@ -129,7 +129,7 @@ The action needs access to your manifests repository. You can use:
 ### Option 1: GitHub Token (Recommended)
 
 ```yaml
-- uses: dcotelo/helm-drift-check@v1
+- uses: helm-tools/helm-drift-check@v1
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}  # Default
     # ... other inputs
@@ -138,7 +138,7 @@ The action needs access to your manifests repository. You can use:
 ### Option 2: GitHub App
 
 ```yaml
-- uses: dcotelo/helm-drift-check@v1
+- uses: helm-tools/helm-drift-check@v1
   with:
     github-app-id: ${{ secrets.APP_ID }}
     github-app-private-key: ${{ secrets.APP_PRIVATE_KEY }}
@@ -228,4 +228,4 @@ Add this step before the drift check for debugging:
 
 ---
 
-Need help? [Create an issue](https://github.com/dcotelo/helm-drift-check/issues/new) or [start a discussion](https://github.com/dcotelo/helm-drift-check/discussions)!
+Need help? [Create an issue](https://github.com/helm-tools/helm-drift-check/issues/new) or [start a discussion](https://github.com/helm-tools/helm-drift-check/discussions)!
