@@ -316,8 +316,8 @@ Maintainers handle releases:
 ## 💬 Getting Help
 
 - 📖 Read the [README](README.md)
-- 🔍 Search existing [issues](https://github.com/dcotelo/helm-drift-check/issues)
-- 💬 Start a [discussion](https://github.com/dcotelo/helm-drift-check/discussions)
+- 🔍 Search existing [issues](https://github.com/helm-tools/helm-drift-check/issues)
+- 💬 Start a [discussion](https://github.com/helm-tools/helm-drift-check/discussions)
 - 📧 Contact maintainers (see GitHub profiles)
 
 ## 🙏 Thank You

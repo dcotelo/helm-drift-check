@@ -1,7 +1,7 @@
 # Helm Chart Drift Check
 
-[![GitHub](https://img.shields.io/github/license/dcotelo/helm-drift-check)](LICENSE)
-[![GitHub release](https://img.shields.io/github/v/release/dcotelo/helm-drift-check)](https://github.com/dcotelo/helm-drift-check/releases)
+[![GitHub](https://img.shields.io/github/license/helm-tools/helm-drift-check)](LICENSE)
+[![GitHub release](https://img.shields.io/github/v/release/helm-tools/helm-drift-check)](https://github.com/helm-tools/helm-drift-check/releases)
 
 A comprehensive GitHub Action for detecting drift between deployed Helm chart versions and current changes across multiple services. Perfect for GitOps workflows using ArgoCD or similar tools.
 
@@ -47,7 +47,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Helm Chart Drift Check
-        uses: dcotelo/helm-drift-check@v1
+        uses: helm-tools/helm-drift-check@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           manifests-repository: 'your-org/manifests-repo'
@@ -73,7 +73,7 @@ For private repositories, you can use GitHub App authentication:
 
 ```yaml
 - name: Run Helm Chart Drift Check
-  uses: dcotelo/helm-drift-check@v1
+  uses: helm-tools/helm-drift-check@v1
   with:
     github-app-id: ${{ secrets.APP_ID }}
     github-app-private-key: ${{ secrets.APP_PRIVATE_KEY }}
@@ -118,7 +118,7 @@ For private repositories, you can use GitHub App authentication:
 ```yaml
 - name: Run Helm Chart Drift Check
   id: drift-check
-  uses: dcotelo/helm-drift-check@v1
+  uses: helm-tools/helm-drift-check@v1
   with:
     # ... inputs
 
@@ -180,7 +180,7 @@ services-config: |
 ### Disable PR Comments
 
 ```yaml
-- uses: dcotelo/helm-drift-check@v1
+- uses: helm-tools/helm-drift-check@v1
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
     manifests-repository: 'your-org/manifests'
@@ -191,7 +191,7 @@ services-config: |
 ### Custom Dyff Version
 
 ```yaml
-- uses: dcotelo/helm-drift-check@v1
+- uses: helm-tools/helm-drift-check@v1
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
     manifests-repository: 'your-org/manifests'
@@ -334,9 +334,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-- 🐛 [Report a bug](https://github.com/dcotelo/helm-drift-check/issues/new?template=bug_report.md)
-- 💡 [Request a feature](https://github.com/dcotelo/helm-drift-check/issues/new?template=feature_request.md)
-- 💬 [Discussions](https://github.com/dcotelo/helm-drift-check/discussions)
+- 🐛 [Report a bug](https://github.com/helm-tools/helm-drift-check/issues/new?template=bug_report.md)
+- 💡 [Request a feature](https://github.com/helm-tools/helm-drift-check/issues/new?template=feature_request.md)
+- 💬 [Discussions](https://github.com/helm-tools/helm-drift-check/discussions)
 
 ---
 

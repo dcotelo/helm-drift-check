@@ -32,7 +32,7 @@ A clear and concise description of what actually happened.
 Please provide your action configuration (remove sensitive data):
 
 ```yaml
-- uses: dcotelo/helm-drift-check@v1
+- uses: helm-tools/helm-drift-check@v1
   with:
     # Your configuration here
 ```
